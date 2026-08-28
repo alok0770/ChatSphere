@@ -8,9 +8,12 @@ public class ChatApplication {
 
 
     static Scanner scanner = new Scanner(System.in);
-    User currentUser = null;
+
 
     ArrayList<User> users = new ArrayList<>();
+    User currentUser = null;
+    MessageManager manager = new MessageManager();
+
 
     public static void main(String[] args) {
 
@@ -85,6 +88,7 @@ public class ChatApplication {
         System.out.print("Enter user name : ");
         name = scanner.nextLine().toLowerCase();
 
+        // User register or not logic
         boolean found = false;
         for (int i = 0; i < users.size(); i++) {
             if (name.equals(users.get(i).getUserName())) {
@@ -132,6 +136,7 @@ public class ChatApplication {
 
                 case 2 -> {
                     System.out.println("Viewing messages !!\n");
+
                 }
                 default -> System.out.println("Enter a valid choice !!\n");
 
@@ -176,12 +181,20 @@ public class ChatApplication {
 
         if (receiver != null) {
             System.out.println("Receiver: " + receiver.getUserName());
+
+
+            System.out.print("\nEnter message : ");
+            String messageText = scanner.nextLine();
+
+            Message message = new Message(currentUser , receiver , messageText);
+            manager.storeMessages(message);
+
+            System.out.println("\nMessage sent successfully !!  ");
+
+        }else {
+            System.out.println("Not any valid user !! ");
         }
 
-        System.out.print("\nEnter message : ");
-        String message = scanner.nextLine();
-
-        System.out.println("\nMessage sent successfully !!  ");
 
 
     }
