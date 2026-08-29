@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 public class MessageManager {
 
-   public ArrayList<Message> messages = new ArrayList<>();
+   private ArrayList<Message> messages = new ArrayList<>();
 
     public void storeMessages(Message message) {
         messages.add(message);

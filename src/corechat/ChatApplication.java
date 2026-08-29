@@ -2,6 +2,7 @@ package corechat;
 
 
 import java.util.ArrayList;
+import java.util.InputMismatchException;
 import java.util.Scanner;
 
 public class ChatApplication {
@@ -13,6 +14,7 @@ public class ChatApplication {
     ArrayList<User> users = new ArrayList<>();
     User currentUser = null;
     MessageManager manager = new MessageManager();
+    ChatService chatService;
 
 
     public static void main(String[] args) {
@@ -53,6 +55,11 @@ public class ChatApplication {
 
                     System.out.println("You selected Login.\n");
                     app.userLogin();
+                    app.chatService = new ChatService(
+                            app.currentUser,
+                            app.users,
+                            app.manager
+                    );
                     app.chatMenu();
                 }
 
@@ -112,16 +119,23 @@ public class ChatApplication {
             System.out.println("========================\n");
 
 
-            System.out.println("1. Send message ");
-            System.out.println("2. View message ");
-            System.out.println("3. Log Out \n");
+            System.out.println("1. Chats ");
+            System.out.println("2. Log Out \n");
 
-            System.out.print("Enter your choice : ");
-            int choice = scanner.nextInt();
-            scanner.nextLine();
-            System.out.println("-----------------------\n");
 
-            if (choice == 3) {
+            int choice = 0;
+
+                try {
+                    System.out.print("Enter your choice : \n");
+                    choice = scanner.nextInt();
+                    scanner.nextLine();
+                } catch (InputMismatchException e) {
+                    System.out.println("Enter valid choice");
+                }
+
+                System.out.println("-----------------------\n");
+
+            if (choice == 2) {
                 System.out.println("Thanks for using !!\n");
                 break;
             }
@@ -129,14 +143,8 @@ public class ChatApplication {
             switch (choice) {
 
                 case 1 -> {
-                    System.out.println("Send message !!\n");
-                    sendMessage();
-
-                }
-
-                case 2 -> {
-                    System.out.println("Viewing messages !!\n");
-                    viewMessage();
+                    System.out.println(" Chats !!\n");
+                    chatService.chats();
 
                 }
                 default -> System.out.println("Enter a valid choice !!\n");
@@ -146,110 +154,8 @@ public class ChatApplication {
         }
     }
 
-    public void sendMessage() {
-
-        System.out.println("==========Send Message========");
-
-        int count = 1;
-        for (int i = 0; i < users.size(); i++) {
-            if (users.get(i) == currentUser) {
-                continue;
-            }
-            System.out.println(count + "." + users.get(i).getUserName());
-            count++;
-        }
-
-        System.out.print("\nEnter your choice : ");
-        int choice = scanner.nextInt();
-        scanner.nextLine();
-
-        count = 1;
-        User receiver = null;
-
-        for (int i = 0; i < users.size(); i++) {
-
-            if (users.get(i) == currentUser) {
-                continue;
-            }
-
-            if (count == choice) {
-                receiver = users.get(i);
-                break;
-            }
-
-            count++;
-        }
-
-        if (receiver != null) {
-            System.out.println("Receiver: " + receiver.getUserName());
-
-
-            System.out.print("\nEnter message : ");
-            String messageText = scanner.nextLine();
-
-            Message message = new Message(currentUser, receiver, messageText);
-            manager.storeMessages(message);
-
-            System.out.println("\nMessage sent successfully !!  ");
-
-        } else {
-            System.out.println("Not any valid user !! ");
-        }
-    }
-
-    public void viewMessage() {
-
-        System.out.println("==========View Message========");
-
-        int count = 1;
-        for (int i = 0; i < users.size(); i++) {
-
-            if (users.get(i) == currentUser) {
-                continue;
-            }
-            System.out.println(count + ". " + users.get(i).getUserName());
-            count++;
-        }
-
-        System.out.print("\nEnter your choice : ");
-        int choice = scanner.nextInt();
-
-        count = 1;
-        User selectedUser = null;
-        for (int i = 0; i < users.size(); i++) {
-
-            if (users.get(i) == currentUser) {
-                continue;
-            }
-
-            if (count == choice) {
-                selectedUser = users.get(i);
-                break;
-            }
-            count++;
-
-        }
-
-        if (selectedUser != null) {
-            System.out.println("\nSelected user : " + selectedUser.getUserName() + "\n");
-            for (int i = 0; i < manager.getMessages().size(); i++) {
-
-                Message message = manager.getMessages().get(i);
-
-                if (
-                        (message.getSender() == currentUser
-                                && message.getReceiver() == selectedUser)
-                                ||
-                                (message.getSender() == selectedUser
-                                        && message.getReceiver() == currentUser)
-                ) {
-
-                    System.out.println(
-                            message.getSender().getUserName() + " : " + message.getMessage());
-
-                }
-            }
-
-        }
-    }
 }
+
+
+
+
