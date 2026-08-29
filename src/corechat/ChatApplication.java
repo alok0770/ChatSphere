@@ -100,7 +100,7 @@ public class ChatApplication {
             }
         }
         if (!found) {
-            System.out.println("Register first !!");
+            System.out.println("Please Register first !!");
         }
     }
 
@@ -136,6 +136,7 @@ public class ChatApplication {
 
                 case 2 -> {
                     System.out.println("Viewing messages !!\n");
+                    viewMessage();
 
                 }
                 default -> System.out.println("Enter a valid choice !!\n");
@@ -162,7 +163,7 @@ public class ChatApplication {
         int choice = scanner.nextInt();
         scanner.nextLine();
 
-         count = 1;
+        count = 1;
         User receiver = null;
 
         for (int i = 0; i < users.size(); i++) {
@@ -186,16 +187,69 @@ public class ChatApplication {
             System.out.print("\nEnter message : ");
             String messageText = scanner.nextLine();
 
-            Message message = new Message(currentUser , receiver , messageText);
+            Message message = new Message(currentUser, receiver, messageText);
             manager.storeMessages(message);
 
             System.out.println("\nMessage sent successfully !!  ");
 
-        }else {
+        } else {
             System.out.println("Not any valid user !! ");
         }
+    }
 
+    public void viewMessage() {
 
+        System.out.println("==========View Message========");
 
+        int count = 1;
+        for (int i = 0; i < users.size(); i++) {
+
+            if (users.get(i) == currentUser) {
+                continue;
+            }
+            System.out.println(count + ". " + users.get(i).getUserName());
+            count++;
+        }
+
+        System.out.print("\nEnter your choice : ");
+        int choice = scanner.nextInt();
+
+        count = 1;
+        User selectedUser = null;
+        for (int i = 0; i < users.size(); i++) {
+
+            if (users.get(i) == currentUser) {
+                continue;
+            }
+
+            if (count == choice) {
+                selectedUser = users.get(i);
+                break;
+            }
+            count++;
+
+        }
+
+        if (selectedUser != null) {
+            System.out.println("\nSelected user : " + selectedUser.getUserName() + "\n");
+            for (int i = 0; i < manager.getMessages().size(); i++) {
+
+                Message message = manager.getMessages().get(i);
+
+                if (
+                        (message.getSender() == currentUser
+                                && message.getReceiver() == selectedUser)
+                                ||
+                                (message.getSender() == selectedUser
+                                        && message.getReceiver() == currentUser)
+                ) {
+
+                    System.out.println(
+                            message.getSender().getUserName() + " : " + message.getMessage());
+
+                }
+            }
+
+        }
     }
 }
