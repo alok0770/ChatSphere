@@ -22,14 +22,14 @@ public class ChatService {
 
 
         if (users.size() <= 1) {
-            System.out.println("No other users available");
+            System.out.println("No other users available :( ");
             return;
         }
 
         int count = 1;
         for (int i = 0; i < users.size(); i++) {
 
-            if (users.get(i) == currentUser) {
+            if (users.get(i)== currentUser) {
                 continue;
             }
             System.out.println(count + "." + users.get(i).getUserName());
@@ -49,7 +49,7 @@ public class ChatService {
 
             } catch (InputMismatchException e) {
 
-                System.out.println("Invalid number \n");
+                System.out.println("-> Invalid choice :( \n");
                 scanner.nextLine();
             }
         }

@@ -31,18 +31,32 @@ public class ChatApplication {
         System.out.println("\nStarting Application...\n");
 
         int choice = 0;
+        boolean valid;
 
         while (true) {
 
             System.out.println("---------Menu---------");
-            System.out.println("1. Login");
-            System.out.println("2. Register");
+            System.out.println("1. Register ");
+            System.out.println("2. Login ");
             System.out.println("3. Exit\n");
 
-            System.out.print("Enter your choice : ");
-            choice = scanner.nextInt();
-            scanner.nextLine();
-            System.out.println("--------------------------");
+            valid = false;
+
+            while (!valid) {
+                try {
+                    System.out.print("Enter your choice : ");
+                    choice = scanner.nextInt();
+                    scanner.nextLine();
+                    valid = true;
+
+
+                    System.out.println("--------------------------");
+                } catch (InputMismatchException e) {
+                    System.out.println("\n-> Invalid choice :( ");
+                    System.out.println();
+                    scanner.nextLine();
+                }
+            }
 
             if (choice == 3) {
                 System.out.println("Exiting CoreChat...");
@@ -51,24 +65,27 @@ public class ChatApplication {
 
             switch (choice) {
 
+
                 case 1 -> {
-
-                    System.out.println("You selected Login.\n");
-                    app.userLogin();
-                    app.chatService = new ChatService(
-                            app.currentUser,
-                            app.users,
-                            app.manager
-                    );
-                    app.chatMenu();
-                }
-
-
-                case 2 -> {
                     System.out.println("You selected Register.\n");
                     app.registerUser();
 
 
+                }
+
+                case 2 -> {
+
+                    System.out.println("You selected Login.\n");
+                    boolean loginSuccess = app.userLogin();
+
+                    if (loginSuccess) {
+                        app.chatService = new ChatService(
+                                app.currentUser,
+                                app.users,
+                                app.manager
+                        );
+                        app.chatMenu();
+                    }
                 }
 
 
@@ -90,29 +107,33 @@ public class ChatApplication {
     }
 
 
-    public void userLogin() {
+    public boolean userLogin() {
         String name;
+
         System.out.print("Enter user name : ");
         name = scanner.nextLine().toLowerCase();
 
+
         // User register or not logic
-        boolean found = false;
+
         for (int i = 0; i < users.size(); i++) {
             if (name.equals(users.get(i).getUserName())) {
-                found = true;
                 System.out.println("\nLogin Successfully \n");
                 currentUser = users.get(i);
                 System.out.println("Welcome , " + currentUser.getUserName());
-                break;
+                return true;
             }
+
         }
-        if (!found) {
-            System.out.println("Please Register first !!");
-        }
+        System.out.println("\nPlease Register first !!");
+        System.out.println();
+
+        return false;
     }
 
     public void chatMenu() {
 
+        boolean valid;
         while (true) {
             System.out.println("========================");
             System.out.println("       CHAT MENU        ");
@@ -124,19 +145,30 @@ public class ChatApplication {
 
 
             int choice = 0;
+            valid = false;
 
+            while (!valid) {
                 try {
-                    System.out.print("Enter your choice : \n");
+                    System.out.print("Enter your choice : ");
                     choice = scanner.nextInt();
                     scanner.nextLine();
-                } catch (InputMismatchException e) {
-                    System.out.println("Enter valid choice");
-                }
+                    valid = true;
 
-                System.out.println("-----------------------\n");
+                } catch (InputMismatchException e) {
+                    System.out.println("\n-> Invalid valid choice :(");
+                    scanner.nextLine();
+                    System.out.println();
+
+
+                }
+            }
+
+            System.out.println("-----------------------\n");
 
             if (choice == 2) {
-                System.out.println("Thanks for using !!\n");
+                System.out.println("Thanks for using :) !\n");
+                currentUser = null;
+                chatService = null;
                 break;
             }
 
