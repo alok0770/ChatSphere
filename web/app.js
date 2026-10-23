@@ -1,652 +1,412 @@
-let authMode = 'login';
-let currentUser = null;
-let activeChatUser = null;
-let allUsers = [];
-let messagePollingTimer = null;
-let soundEnabled = true;
+'use strict';
+/* CoreChat frontend.
+   Uses your Java backend (/api/...) when it is reachable; otherwise falls back to a
+   built-in localStorage backend so the app works standalone (open two tabs to chat). */
 
-// =========================================
-// PASSWORD VISIBILITY TOGGLE
-// =========================================
-function togglePasswordVisibility() {
-    const passwordInput = document.getElementById('password');
-    const eyeIcon = document.getElementById('eye-icon');
+const BOT = 'SphereAI';
+const ADMINS = ['admin', 'alokrana'];
+const GRADIENTS = ['#6366f1,#a855f7', '#3b82f6,#06b6d4', '#10b981,#059669', '#f59e0b,#d97706', '#ec4899,#8b5cf6', '#14b8a6,#3b82f6'];
 
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        // Eye-slash icon
-        eyeIcon.innerHTML = `
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-            <line x1="1" y1="1" x2="23" y2="23"></line>
-        `;
-    } else {
-        passwordInput.type = 'password';
-        // Standard eye icon
-        eyeIcon.innerHTML = `
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-        `;
-    }
+let authMode = 'login', currentUser = null, activeChatUser = null, allUsers = [];
+let pollTimer = null, fastTimer = null, soundEnabled = true, lastSig = null, audioCtx = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const gradient = n => { let h = 0; for (const c of n) h = c.charCodeAt(0) + ((h << 5) - h); return `linear-gradient(135deg,${GRADIENTS[Math.abs(h) % GRADIENTS.length]})`; };
+const isAdmin = u => ADMINS.includes(String(u).toLowerCase());
+
+/* ---------- Local backend (localStorage) ---------- */
+const DB_KEY = 'corechat_db';
+const loadDb = () => { try { return JSON.parse(localStorage.getItem(DB_KEY)) || { users: [], messages: [] }; } catch { return { users: [], messages: [] }; } };
+const saveDb = d => { try { localStorage.setItem(DB_KEY, JSON.stringify(d)); } catch { } };
+const hash = s => { let h = 5381; for (const c of s) h = (h * 33) ^ c.charCodeAt(0); return (h >>> 0).toString(36); };
+const pushMsg = (d, sender, receiver, content) => d.messages.push({ sender, receiver, content, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+
+function botReply(t) {
+    t = t.toLowerCase();
+    if (/\b(hi|hello|hey)\b/.test(t)) return 'Hey there! 👋 I\'m SphereAI. Ask me about Java, CoreChat, or just say hi.';
+    if (t.includes('java')) return 'Java tip: prefer try-with-resources for sockets and streams, and use a thread pool instead of one thread per client. ☕';
+    if (t.includes('thread')) return 'Threads: use ExecutorService for fixed pools, and guard shared state with synchronized or ConcurrentHashMap.';
+    if (t.includes('socket') || t.includes('server')) return 'A simple Java server: ServerSocket.accept() in a loop, handing each Socket to a worker from a thread pool.';
+    if (t.includes('who') || t.includes('name')) return 'I\'m @SphereAI, the built-in assistant of CoreChat. 🤖';
+    if (t.includes('thank')) return 'Anytime! 🚀';
+    return 'Interesting! I\'m a small built-in bot, so I know best about Java, threads and sockets. Try asking about one of those.';
 }
 
-// =========================================
-// WEB AUDIO API SYNTHESIZER
-// =========================================
-let audioCtx = null;
+const local = {
+    register(_, { username, password }) {
+        const d = loadDb();
+        if (username.length < 3) return { error: 'Username must be at least 3 characters.' };
+        if (password.length < 4) return { error: 'Password must be at least 4 characters.' };
+        if (username === BOT.toLowerCase() || d.users.some(u => u.username === username)) return { error: 'That username is already taken.' };
+        d.users.push({ username, pw: hash(password) }); saveDb(d);
+        return { success: true, message: 'Account created. Welcome!' };
+    },
+    login(_, { username, password }) {
+        const u = loadDb().users.find(x => x.username === username);
+        return u && u.pw === hash(password) ? { success: true, message: 'Welcome back!' } : { error: 'Invalid username or password.' };
+    },
+    users: ({ current }) => loadDb().users.filter(u => u.username !== current).map(u => ({ username: u.username })),
+    messages: ({ user1, user2 }) => loadDb().messages.filter(m => (m.sender === user1 && m.receiver === user2) || (m.sender === user2 && m.receiver === user1)),
+    send(_, { sender, receiver, content }) {
+        const d = loadDb(); pushMsg(d, sender, receiver, content); saveDb(d);
+        if (receiver === BOT) setTimeout(() => { const d2 = loadDb(); pushMsg(d2, BOT, sender, botReply(content)); saveDb(d2); }, 900);
+        return { success: true };
+    },
+    'admin/check': ({ user }) => ({ isAdmin: isAdmin(user) }),
+    'admin/stats'({ admin }) {
+        if (!isAdmin(admin)) return { error: 'Forbidden.' };
+        const d = loadDb();
+        return { success: true, totalUsers: d.users.length, totalMessages: d.messages.length, users: d.users.map(u => ({ username: u.username })) };
+    },
+    'admin/delete-user'(_, { admin, target }) {
+        if (!isAdmin(admin) || isAdmin(target)) return { error: 'Not allowed.' };
+        const d = loadDb();
+        d.users = d.users.filter(u => u.username !== target);
+        d.messages = d.messages.filter(m => m.sender !== target && m.receiver !== target);
+        saveDb(d); return { success: true, message: `@${target} was deleted.` };
+    },
+    'admin/warning'(_, { admin, target, warning }) {
+        if (!isAdmin(admin)) return { error: 'Not allowed.' };
+        const d = loadDb(); pushMsg(d, admin, target, '⚠️ Official notice: ' + warning); saveDb(d);
+        return { success: true, message: `Notice sent to @${target}.` };
+    }
+};
+
+/* ---------- API layer: real backend if present, else local ---------- */
+let remote;
+async function useRemote() {
+    if (remote !== undefined) return remote;
+    try {
+        const r = await fetch('/api/users?current=_', { cache: 'no-store' });
+        remote = r.ok && (r.headers.get('content-type') || '').includes('json');
+    } catch { remote = false; }
+    return remote;
+}
+
+async function api(route, params, body) {
+    if (await useRemote()) {
+        const qs = params ? '?' + new URLSearchParams(params) : '';
+        const opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
+        const res = await fetch('/api/' + route + qs, opts);
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data)) return data;
+        return res.ok ? { success: true, ...data } : { ...data, success: false };
+    }
+    return local[route](params, body);
+}
+
+/* ---------- Small UI helpers ---------- */
+function togglePasswordVisibility() {
+    const p = $('password'), icon = $('eye-icon'), show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    icon.innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
 function playChime(isSend = true) {
     if (!soundEnabled) return;
     try {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        const now = audioCtx.currentTime;
-        if (isSend) {
-            osc.frequency.setValueAtTime(620, now);
-            osc.frequency.exponentialRampToValueAtTime(920, now + 0.11);
-        } else {
-            osc.frequency.setValueAtTime(780, now);
-            osc.frequency.exponentialRampToValueAtTime(560, now + 0.13);
-        }
-
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-
-        osc.start(now);
-        osc.stop(now + 0.14);
-    } catch (e) {
-        // audio context blocked or unsupported
-    }
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain(), t = audioCtx.currentTime;
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.frequency.setValueAtTime(isSend ? 620 : 780, t);
+        osc.frequency.exponentialRampToValueAtTime(isSend ? 920 : 560, t + 0.12);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        osc.start(t); osc.stop(t + 0.14);
+    } catch { /* audio unavailable */ }
 }
 
 function toggleSound() {
     soundEnabled = !soundEnabled;
-    const btn = document.getElementById('sound-toggle-btn');
-    btn.innerHTML = soundEnabled ? '🔔 <span>Audio On</span>' : '🔕 <span>Muted</span>';
+    $('sound-toggle-btn').innerHTML = soundEnabled ? '🔔 <span>Audio On</span>' : '🔕 <span>Muted</span>';
 }
 
-function insertEmoji(emoji) {
-    const input = document.getElementById('message-input');
-    input.value += emoji;
-    input.focus();
-}
+function insertEmoji(e) { const i = $('message-input'); i.value += e; i.focus(); }
 
-// Avatar Gradient Generator
-const GRADIENTS = [
-    'linear-gradient(135deg, #6366f1, #a855f7)',
-    'linear-gradient(135deg, #3b82f6, #06b6d4)',
-    'linear-gradient(135deg, #10b981, #059669)',
-    'linear-gradient(135deg, #f59e0b, #d97706)',
-    'linear-gradient(135deg, #ec4899, #8b5cf6)',
-    'linear-gradient(135deg, #14b8a6, #3b82f6)'
-];
-
-function getAvatarGradient(name) {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % GRADIENTS.length;
-    return GRADIENTS[index];
-}
-
-// =========================================
-// AUTHENTICATION LOGIC
-// =========================================
+/* ---------- Auth ---------- */
 function switchAuthTab(mode) {
     authMode = mode;
-    const tabLogin = document.getElementById('tab-login');
-    const tabRegister = document.getElementById('tab-register');
-    const submitBtn = document.getElementById('auth-submit-btn');
-    const alertBox = document.getElementById('auth-alert');
-
-    alertBox.className = 'alert-box hidden';
-    alertBox.textContent = '';
-
-    if (mode === 'login') {
-        tabLogin.classList.add('active');
-        tabRegister.classList.remove('active');
-        submitBtn.querySelector('span').textContent = 'Sign In to Account';
-    } else {
-        tabRegister.classList.add('active');
-        tabLogin.classList.remove('active');
-        submitBtn.querySelector('span').textContent = 'Create New Account';
-    }
+    $('tab-login').classList.toggle('active', mode === 'login');
+    $('tab-register').classList.toggle('active', mode === 'register');
+    $('auth-submit-btn').querySelector('span').textContent = mode === 'login' ? 'Sign In to Account' : 'Create New Account';
+    $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    $('auth-alert').className = 'alert-box hidden';
 }
+
+function showAlert(msg, type) { const a = $('auth-alert'); a.textContent = msg; a.className = `alert-box ${type}`; }
 
 async function handleAuthSubmit(event) {
     event.preventDefault();
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-
-    const username = usernameInput.value.trim().toLowerCase();
-    const password = passwordInput.value;
-
-    if (!username || !password) {
-        showAlert('Please enter both username and password.', 'error');
-        return;
-    }
-
-    const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
-
+    const username = $('username').value.trim().toLowerCase(), password = $('password').value;
+    if (!username || !password) return showAlert('Please enter both username and password.', 'error');
+    const btn = $('auth-submit-btn'); btn.disabled = true;
     try {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
+        const data = await api(authMode === 'login' ? 'login' : 'register', null, { username, password });
+        if (data.success) {
             currentUser = username;
-            showAlert(data.message, 'success');
-            setTimeout(() => {
-                initChatView();
-            }, 350);
-        } else {
-            showAlert(data.error || 'Authentication failed.', 'error');
-        }
+            sessionStorage.setItem('cc_user', username);
+            showAlert(data.message || 'Success!', 'success');
+            setTimeout(initChatView, 350);
+        } else showAlert(data.error || data.message || 'Authentication failed.', 'error');
     } catch (err) {
-        console.error(err);
-        showAlert('Could not connect to the server.', 'error');
-    }
+        console.error(err); showAlert('Could not reach the server.', 'error');
+    } finally { btn.disabled = false; }
 }
 
-function showAlert(message, type) {
-    const alertBox = document.getElementById('auth-alert');
-    alertBox.textContent = message;
-    alertBox.className = `alert-box ${type}`;
-}
-
-// =========================================
-// CHAT VIEW INITIALIZATION
-// =========================================
 function initChatView() {
-    document.getElementById('auth-view').classList.add('hidden');
-    document.getElementById('chat-view').classList.remove('hidden');
-
-    document.getElementById('current-user-name').textContent = '@' + currentUser;
-    const avatarEl = document.getElementById('current-user-avatar');
-    avatarEl.textContent = currentUser.charAt(0).toUpperCase();
-    avatarEl.style.background = getAvatarGradient(currentUser);
-
-    loadUsers();
-    checkAdminStatus();
+    $('auth-view').classList.add('hidden');
+    $('chat-view').classList.remove('hidden');
+    $('current-user-name').textContent = '@' + currentUser;
+    const av = $('current-user-avatar');
+    av.textContent = currentUser.charAt(0).toUpperCase();
+    av.style.background = gradient(currentUser);
+    loadUsers(); checkAdminStatus();
 }
+
+function stopTimers() { clearInterval(pollTimer); clearInterval(fastTimer); pollTimer = fastTimer = null; }
 
 function logout() {
-    if (messagePollingTimer) {
-        clearInterval(messagePollingTimer);
-        messagePollingTimer = null;
-    }
-    currentUser = null;
-    activeChatUser = null;
-    allUsers = [];
-
-    const frame = document.querySelector('.app-frame');
-    if (frame) frame.classList.remove('in-chat');
-
-    document.getElementById('admin-panel-btn').classList.add('hidden');
-    document.getElementById('admin-modal').classList.add('hidden');
-
-    document.getElementById('username').value = '';
-    document.getElementById('password').value = '';
-    document.getElementById('auth-alert').className = 'alert-box hidden';
-
-    document.getElementById('chat-view').classList.add('hidden');
-    document.getElementById('auth-view').classList.remove('hidden');
+    stopTimers();
+    currentUser = activeChatUser = null; allUsers = []; lastSig = null;
+    sessionStorage.removeItem('cc_user');
+    document.querySelector('.app-frame').classList.remove('in-chat');
+    $('active-chat-wrapper').classList.add('hidden');
+    $('no-chat-selected').classList.remove('hidden');
+    $('admin-panel-btn').classList.add('hidden');
+    $('admin-modal').classList.add('hidden');
+    $('username').value = ''; $('password').value = '';
+    $('auth-alert').className = 'alert-box hidden';
+    $('chat-view').classList.add('hidden');
+    $('auth-view').classList.remove('hidden');
 }
 
-// =========================================
-// USERS MANAGEMENT
-// =========================================
+/* ---------- Users ---------- */
 async function loadUsers() {
     try {
-        const res = await fetch(`/api/users?current=${encodeURIComponent(currentUser)}`);
-        const users = await res.json();
-        allUsers = users;
-        renderUsersList(allUsers);
-    } catch (err) {
-        console.error('Failed to load users:', err);
-    }
+        const users = await api('users', { current: currentUser });
+        allUsers = Array.isArray(users) ? users : [];
+        filterUsers();
+    } catch (err) { console.error('Failed to load users:', err); }
 }
 
 function renderUsersList(users) {
-    const listContainer = document.getElementById('users-list');
-    listContainer.innerHTML = '';
-
-    // Pinned @SphereAI Assistant
-    const botItem = document.createElement('div');
-    botItem.className = `user-card-item ai-bot-card ${activeChatUser === 'SphereAI' ? 'active' : ''}`;
-    botItem.onclick = () => selectUser('SphereAI');
-    botItem.innerHTML = `
-        <div class="avatar ai-avatar" style="width: 40px; height: 40px; font-size: 18px; flex-shrink: 0; background: linear-gradient(135deg, #8b5cf6, #3b82f6); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);">🤖</div>
-        <div class="user-card-meta">
-            <div class="user-row-top">
-                <span class="user-item-username" style="color: #c4b5fd; font-weight: 800;">@SphereAI <span class="ai-badge">AI BOT</span></span>
-                <span class="user-item-timestamp" style="color: #a78bfa;">24/7</span>
-            </div>
-            <div class="user-row-bottom">
-                <span class="user-item-snippet" style="color: #a78bfa;">⚡ Instant answers & Java help</span>
-            </div>
-        </div>
-    `;
-    listContainer.appendChild(botItem);
-
-    // Filter out duplicate bot from regular users list
-    const realUsers = users.filter(u => u.username.toLowerCase() !== 'sphereai');
-
-    if (realUsers.length === 0) {
-        const emptyNotice = document.createElement('div');
-        emptyNotice.style.cssText = 'padding: 22px 16px; text-align: center; color: var(--text-dim); font-size: 12.5px; line-height: 1.5;';
-        emptyNotice.innerHTML = 'No other friends online.<br>Chat with <b>@SphereAI</b> above or invite friends!';
-        listContainer.appendChild(emptyNotice);
-        return;
-    }
-
-    realUsers.forEach(user => {
-        const item = document.createElement('div');
-        item.className = `user-card-item ${activeChatUser === user.username ? 'active' : ''}`;
-        item.onclick = () => selectUser(user.username);
-
-        const initial = user.username.charAt(0).toUpperCase();
-        const gradient = getAvatarGradient(user.username);
-
-        item.innerHTML = `
-            <div class="avatar" style="width: 40px; height: 40px; font-size: 14px; background: ${gradient}; flex-shrink: 0;">${initial}</div>
+    const list = $('users-list');
+    list.innerHTML = '';
+    list.insertAdjacentHTML('beforeend', `
+        <div class="user-card-item ai-bot-card ${activeChatUser === BOT ? 'active' : ''}" data-user="${BOT}">
+            <div class="avatar ai-avatar">🤖</div>
             <div class="user-card-meta">
-                <div class="user-row-top">
-                    <span class="user-item-username">@${user.username}</span>
-                    <span class="user-item-timestamp">Active</span>
-                </div>
-                <div class="user-row-bottom">
-                    <span class="user-item-snippet">Tap to open encrypted chat</span>
-                </div>
+                <div class="user-row-top"><span class="user-item-username">@${BOT} <span class="ai-badge">AI BOT</span></span><span class="user-item-timestamp">24/7</span></div>
+                <div class="user-row-bottom"><span class="user-item-snippet">⚡ Instant answers &amp; Java help</span></div>
             </div>
-        `;
-        listContainer.appendChild(item);
-    });
+        </div>`);
+    const real = users.filter(u => u.username.toLowerCase() !== BOT.toLowerCase());
+    if (!real.length) {
+        list.insertAdjacentHTML('beforeend', `<div class="empty-note">No other friends yet.<br>Chat with <b>@${BOT}</b> above or invite someone to register.</div>`);
+    }
+    real.forEach(u => list.insertAdjacentHTML('beforeend', `
+        <div class="user-card-item ${activeChatUser === u.username ? 'active' : ''}" data-user="${esc(u.username)}">
+            <div class="avatar" style="background:${gradient(u.username)}">${esc(u.username.charAt(0))}</div>
+            <div class="user-card-meta">
+                <div class="user-row-top"><span class="user-item-username">@${esc(u.username)}</span><span class="user-item-timestamp">Active</span></div>
+                <div class="user-row-bottom"><span class="user-item-snippet">Tap to open chat</span></div>
+            </div>
+        </div>`));
 }
 
 function filterUsers() {
-    const query = document.getElementById('search-input').value.toLowerCase();
-    const filtered = allUsers.filter(u => u.username.toLowerCase().includes(query));
-    renderUsersList(filtered);
+    const q = $('search-input').value.trim().toLowerCase();
+    renderUsersList(allUsers.filter(u => u.username.toLowerCase().includes(q)));
 }
 
-// =========================================
-// ACTIVE CHAT & MESSAGING
-// =========================================
+/* ---------- Chat ---------- */
 function selectUser(username) {
-    activeChatUser = username;
+    activeChatUser = username; lastSig = null;
+    document.querySelector('.app-frame').classList.add('in-chat');
+    $('no-chat-selected').classList.add('hidden');
+    $('active-chat-wrapper').classList.remove('hidden');
 
-    const frame = document.querySelector('.app-frame');
-    if (frame) frame.classList.add('in-chat');
-
-    document.getElementById('no-chat-selected').classList.add('hidden');
-    document.getElementById('active-chat-wrapper').classList.remove('hidden');
-
-    const chatAvatar = document.getElementById('active-chat-avatar');
-    if (username === 'SphereAI') {
-        document.getElementById('active-chat-username').innerHTML = '@SphereAI <span class="ai-badge">AI BOT</span>';
-        chatAvatar.textContent = '🤖';
-        chatAvatar.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
-        chatAvatar.style.boxShadow = '0 0 15px rgba(139, 92, 246, 0.4)';
+    const av = $('active-chat-avatar'), name = $('active-chat-username');
+    if (username === BOT) {
+        name.innerHTML = `@${BOT} <span class="ai-badge">AI BOT</span>`;
+        av.textContent = '🤖'; av.style.background = 'linear-gradient(135deg,#8b5cf6,#3b82f6)';
     } else {
-        document.getElementById('active-chat-username').textContent = '@' + username;
-        chatAvatar.textContent = username.charAt(0).toUpperCase();
-        chatAvatar.style.background = getAvatarGradient(username);
-        chatAvatar.style.boxShadow = 'none';
+        name.textContent = '@' + username;
+        av.textContent = username.charAt(0).toUpperCase(); av.style.background = gradient(username);
     }
-
-    renderUsersList(allUsers);
-
-    lastRenderedMessagesCount = -1;
+    filterUsers();
+    $('messages-container').innerHTML = '';
     loadMessages();
-
-    if (messagePollingTimer) {
-        clearInterval(messagePollingTimer);
-    }
-    // Poll for new incoming messages every 1.5 seconds
-    messagePollingTimer = setInterval(loadMessages, 1500);
-
-    document.getElementById('message-input').focus();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(loadMessages, 1500);
+    if (window.matchMedia('(min-width: 769px)').matches) $('message-input').focus();
 }
 
 function backToSidebar() {
-    const frame = document.querySelector('.app-frame');
-    if (frame) frame.classList.remove('in-chat');
-
-    activeChatUser = null;
-    const noChat = document.getElementById('no-chat-selected');
-    const activeChat = document.getElementById('active-chat-wrapper');
-    if (noChat) noChat.classList.remove('hidden');
-    if (activeChat) activeChat.classList.add('hidden');
-
-    if (messagePollingTimer) {
-        clearInterval(messagePollingTimer);
-        messagePollingTimer = null;
-    }
-    renderUsersList(allUsers);
+    document.querySelector('.app-frame').classList.remove('in-chat');
+    activeChatUser = null; lastSig = null;
+    $('no-chat-selected').classList.remove('hidden');
+    $('active-chat-wrapper').classList.add('hidden');
+    stopTimers(); filterUsers();
 }
-
-let lastRenderedMessagesCount = -1;
 
 async function loadMessages() {
     if (!currentUser || !activeChatUser) return;
-
+    const peer = activeChatUser;
     try {
-        const res = await fetch(`/api/messages?user1=${encodeURIComponent(currentUser)}&user2=${encodeURIComponent(activeChatUser)}`);
-        const messages = await res.json();
-
-        if (messages.length !== lastRenderedMessagesCount) {
-            const hadMessages = lastRenderedMessagesCount > 0;
-            const isNewIncoming = messages.length > lastRenderedMessagesCount && hadMessages;
-
-            lastRenderedMessagesCount = messages.length;
-            renderMessages(messages);
-
-            // Play incoming sound if message arrived from friend
-            if (isNewIncoming) {
-                const latest = messages[messages.length - 1];
-                if (latest.sender.toLowerCase() !== currentUser.toLowerCase()) {
-                    playChime(false);
-                }
-            }
-        }
-    } catch (err) {
-        console.error('Failed to load messages:', err);
-    }
+        const msgs = await api('messages', { user1: currentUser, user2: peer });
+        if (peer !== activeChatUser || !Array.isArray(msgs)) return;
+        const last = msgs[msgs.length - 1];
+        const sig = msgs.length + '|' + (last ? last.sender + last.content : '');
+        if (sig === lastSig) return;
+        const incoming = lastSig !== null && last && last.sender.toLowerCase() !== currentUser;
+        const prevCount = lastSig === null ? msgs.length : parseInt(lastSig, 10);
+        lastSig = sig;
+        renderMessages(msgs, prevCount);
+        if (incoming && msgs.length > prevCount) playChime(false);
+    } catch (err) { console.error('Failed to load messages:', err); }
 }
 
-function renderMessages(messages) {
-    const container = document.getElementById('messages-container');
-    container.innerHTML = '';
-
-    if (messages.length === 0) {
-        container.innerHTML = `
-            <div style="margin: auto; text-align: center; color: var(--text-dim); font-size: 13px;">
-                No messages yet. Say hello to @${activeChatUser}! 👋
-            </div>
-        `;
+function renderMessages(msgs, prevCount = 0) {
+    const box = $('messages-container');
+    box.innerHTML = '';
+    if (!msgs.length) {
+        box.innerHTML = `<div class="no-msgs">No messages yet. Say hello to @${esc(activeChatUser)}! 👋</div>`;
         return;
     }
-
-    // Date Divider Pill
-    const dateDivider = document.createElement('div');
-    dateDivider.className = 'date-divider';
-    dateDivider.innerHTML = '<span class="date-badge">TODAY</span>';
-    container.appendChild(dateDivider);
-
-    messages.forEach(msg => {
-        const isSent = msg.sender.toLowerCase() === currentUser.toLowerCase();
-        const bubble = document.createElement('div');
-        bubble.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
-
-        if (!isSent) {
-            const senderTag = document.createElement('div');
-            senderTag.className = 'bubble-sender';
-            senderTag.textContent = '@' + msg.sender;
-            bubble.appendChild(senderTag);
-        }
-
-        const textContent = document.createElement('div');
-        textContent.className = 'bubble-text';
-        textContent.textContent = msg.content;
-        bubble.appendChild(textContent);
-
-        const footer = document.createElement('div');
-        footer.className = 'bubble-footer';
-
-        const timeSpan = document.createElement('span');
-        timeSpan.textContent = msg.timestamp || 'Now';
-        footer.appendChild(timeSpan);
-
-        if (isSent) {
-            const ticks = document.createElement('span');
-            ticks.className = 'double-ticks';
-            ticks.textContent = ' ✓✓';
-            footer.appendChild(ticks);
-        }
-
-        bubble.appendChild(footer);
-        container.appendChild(bubble);
+    box.insertAdjacentHTML('beforeend', '<div class="date-divider"><span class="date-badge">TODAY</span></div>');
+    msgs.forEach((m, i) => {
+        const sent = m.sender.toLowerCase() === currentUser;
+        box.insertAdjacentHTML('beforeend', `
+            <div class="message-bubble ${sent ? 'sent' : 'received'} ${i >= prevCount ? 'fresh' : ''}">
+                ${sent ? '' : `<div class="bubble-sender">@${esc(m.sender)}</div>`}
+                <div class="bubble-text">${esc(m.content)}</div>
+                <div class="bubble-footer"><span>${esc(m.timestamp || 'Now')}</span>${sent ? '<span class="double-ticks">✓✓</span>' : ''}</div>
+            </div>`);
     });
-
-    // If in chat with SphereAI and the latest message was sent by currentUser, show typing indicator
-    if (activeChatUser === 'SphereAI' && messages.length > 0) {
-        const lastMsg = messages[messages.length - 1];
-        if (lastMsg.sender.toLowerCase() === currentUser.toLowerCase()) {
-            appendAiTypingIndicator(container);
-        }
+    const last = msgs[msgs.length - 1];
+    if (activeChatUser === BOT && last.sender.toLowerCase() === currentUser) {
+        box.insertAdjacentHTML('beforeend', `
+            <div class="message-bubble received ai-typing-bubble" id="ai-typing-indicator">
+                <div class="bubble-sender">@${BOT}</div>
+                <div class="typing-dots-wrap"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-text">thinking...</span></div>
+            </div>`);
     }
-
-    container.scrollTop = container.scrollHeight;
+    box.scrollTop = box.scrollHeight;
 }
 
-let fastAiPollingTimer = null;
-
-function appendAiTypingIndicator(container) {
-    if (document.getElementById('ai-typing-indicator')) return;
-    const row = document.createElement('div');
-    row.id = 'ai-typing-indicator';
-    row.className = 'message-bubble received ai-typing-bubble';
-    row.innerHTML = `
-        <div class="bubble-sender" style="color: #a78bfa; font-size: 11px;">@SphereAI</div>
-        <div class="typing-dots-wrap">
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-dot"></span>
-            <span class="typing-text">thinking...</span>
-        </div>
-    `;
-    container.appendChild(row);
-}
-
-function triggerFastAiPolling() {
-    if (fastAiPollingTimer) clearInterval(fastAiPollingTimer);
-    let polls = 0;
-    fastAiPollingTimer = setInterval(async () => {
-        polls++;
+function fastPollForBot() {
+    clearInterval(fastTimer);
+    let n = 0;
+    fastTimer = setInterval(async () => {
         await loadMessages();
-        // If reply arrived (indicator removed) or 15 polls reached (6 seconds), stop fast polling
-        if (!document.getElementById('ai-typing-indicator') || polls >= 15) {
-            clearInterval(fastAiPollingTimer);
-            fastAiPollingTimer = null;
-        }
-    }, 400); // 400ms ultra-fast poll!
+        if (++n >= 16 || !$('ai-typing-indicator')) { clearInterval(fastTimer); fastTimer = null; }
+    }, 500);
 }
 
 async function handleSendMessage(event) {
     event.preventDefault();
-    const input = document.getElementById('message-input');
-    const content = input.value.trim();
-
+    const input = $('message-input'), content = input.value.trim();
     if (!content || !activeChatUser) return;
-
     input.value = '';
-
-    // Play instant sound
     playChime(true);
-
     try {
-        const res = await fetch('/api/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sender: currentUser,
-                receiver: activeChatUser,
-                content: content
-            })
-        });
-
-        if (res.ok) {
-            await loadMessages();
-            if (activeChatUser === 'SphereAI') {
-                const container = document.getElementById('messages-container');
-                if (container) {
-                    appendAiTypingIndicator(container);
-                    container.scrollTop = container.scrollHeight;
-                }
-                triggerFastAiPolling();
-            }
-        }
-    } catch (err) {
-        console.error('Error sending message:', err);
-    }
+        const r = await api('send', null, { sender: currentUser, receiver: activeChatUser, content });
+        if (r && r.success === false) return;
+        await loadMessages();
+        if (activeChatUser === BOT) fastPollForBot();
+    } catch (err) { console.error('Error sending message:', err); }
 }
 
-// =========================================
-// SUPER ADMIN CONSOLE CONTROLLER
-// =========================================
+/* ---------- Admin console ---------- */
 async function checkAdminStatus() {
-    if (!currentUser) return;
     try {
-        const res = await fetch(`/api/admin/check?user=${encodeURIComponent(currentUser)}`);
-        const data = await res.json();
-        if (data.isAdmin) {
-            document.getElementById('admin-panel-btn').classList.remove('hidden');
-            document.getElementById('current-user-name').textContent = '@' + currentUser + ' 👑';
-        } else {
-            document.getElementById('admin-panel-btn').classList.add('hidden');
-        }
-    } catch (err) {
-        console.error('Failed to verify admin status:', err);
-    }
+        const d = await api('admin/check', { user: currentUser });
+        $('admin-panel-btn').classList.toggle('hidden', !d.isAdmin);
+        $('current-user-name').textContent = '@' + currentUser + (d.isAdmin ? ' 👑' : '');
+    } catch (err) { console.error('Admin check failed:', err); }
 }
 
-function openAdminModal() {
-    document.getElementById('admin-modal').classList.remove('hidden');
-    loadAdminDashboard();
-}
-
-function closeAdminModal() {
-    document.getElementById('admin-modal').classList.add('hidden');
-    document.getElementById('admin-feedback').classList.add('hidden');
-}
-
-function handleModalBackdropClick(event) {
-    if (event.target.id === 'admin-modal') {
-        closeAdminModal();
-    }
-}
+function openAdminModal() { $('admin-modal').classList.remove('hidden'); loadAdminDashboard(); }
+function closeAdminModal() { $('admin-modal').classList.add('hidden'); $('admin-feedback').classList.add('hidden'); }
+function handleModalBackdropClick(e) { if (e.target.id === 'admin-modal') closeAdminModal(); }
 
 async function loadAdminDashboard() {
-    if (!currentUser) return;
     try {
-        const res = await fetch(`/api/admin/stats?admin=${encodeURIComponent(currentUser)}`);
-        const data = await res.json();
-
-        if (data.success) {
-            document.getElementById('stat-total-users').textContent = data.totalUsers;
-            document.getElementById('stat-total-messages').textContent = data.totalMessages;
-
-            renderAdminUserRows(data.users || []);
-        }
-    } catch (err) {
-        console.error('Failed to load admin dashboard:', err);
-    }
+        const d = await api('admin/stats', { admin: currentUser });
+        if (!d.success) return;
+        $('stat-total-users').textContent = d.totalUsers;
+        $('stat-total-messages').textContent = d.totalMessages;
+        renderAdminUserRows(d.users || []);
+    } catch (err) { console.error('Failed to load admin dashboard:', err); }
 }
 
 function renderAdminUserRows(users) {
-    const container = document.getElementById('admin-users-table');
-    container.innerHTML = '';
-
-    if (users.length === 0) {
-        container.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 13px;">No users found</div>';
-        return;
-    }
-
-    users.forEach(user => {
-        const row = document.createElement('div');
-        row.className = 'admin-user-row';
-
-        const isSuperAdmin = user.username.toLowerCase() === 'alokrana' || user.username.toLowerCase() === 'admin';
-        const initial = user.username.charAt(0).toUpperCase();
-        const gradient = getAvatarGradient(user.username);
-
-        row.innerHTML = `
-            <div class="admin-user-info">
-                <div class="avatar" style="width: 32px; height: 32px; font-size: 12px; background: ${gradient};">${initial}</div>
-                <div>
-                    <span class="admin-user-name">@${user.username} ${isSuperAdmin ? '👑 (Admin)' : ''}</span>
+    const box = $('admin-users-table');
+    box.innerHTML = '';
+    if (!users.length) { box.innerHTML = '<div class="empty-note">No users found</div>'; return; }
+    users.forEach(u => {
+        const admin = isAdmin(u.username), n = esc(u.username);
+        box.insertAdjacentHTML('beforeend', `
+            <div class="admin-user-row">
+                <div class="admin-user-info">
+                    <div class="avatar" style="background:${gradient(u.username)}">${esc(u.username.charAt(0))}</div>
+                    <span class="admin-user-name">@${n} ${admin ? '👑' : ''}</span>
                 </div>
-            </div>
-            <div class="admin-actions-cell">
-                ${!isSuperAdmin ? `
-                    <button class="btn-admin-act btn-warn" onclick="sendWarningByAdmin('${user.username}')" title="Send Official Notice">
-                        ⚠️ Warn
-                    </button>
-                    <button class="btn-admin-act btn-delete" onclick="deleteUserByAdmin('${user.username}')" title="Delete User">
-                        🗑️ Delete
-                    </button>
-                ` : '<span style="font-size: 11px; color: var(--accent-emerald); font-weight: 700;">Protected</span>'}
-            </div>
-        `;
-        container.appendChild(row);
+                <div class="admin-actions-cell">${admin ? '<span class="protected-tag">Protected</span>' : `
+                    <button class="btn-admin-act btn-warn" data-act="warn" data-user="${n}">⚠️ Warn</button>
+                    <button class="btn-admin-act btn-delete" data-act="delete" data-user="${n}">🗑️ Delete</button>`}
+                </div>
+            </div>`);
     });
 }
 
-async function deleteUserByAdmin(targetUsername) {
-    if (!confirm(`Are you sure you want to permanently delete user @${targetUsername} and their chat history?`)) {
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/admin/delete-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ admin: currentUser, target: targetUsername })
-        });
-        const data = await res.json();
-
-        showAdminFeedback(data.message || data.error);
-        if (data.success) {
-            loadAdminDashboard();
-            loadUsers();
-            if (activeChatUser === targetUsername) {
-                document.getElementById('no-chat-selected').classList.remove('hidden');
-                document.getElementById('active-chat-wrapper').classList.add('hidden');
-                activeChatUser = null;
-            }
-        }
-    } catch (err) {
-        showAdminFeedback('Failed to delete user.');
-    }
-}
-
-async function sendWarningByAdmin(targetUsername) {
-    const warningText = prompt(`Enter official admin notice for @${targetUsername}:`, 'Please follow community rules and maintain respect.');
-    if (!warningText || !warningText.trim()) return;
-
-    try {
-        const res = await fetch('/api/admin/warning', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ admin: currentUser, target: targetUsername, warning: warningText.trim() })
-        });
-        const data = await res.json();
-        showAdminFeedback(data.message || data.error);
-    } catch (err) {
-        showAdminFeedback('Failed to send warning.');
-    }
-}
-
 function showAdminFeedback(msg) {
-    const el = document.getElementById('admin-feedback');
-    el.textContent = msg;
-    el.classList.remove('hidden');
-    setTimeout(() => {
-        el.classList.add('hidden');
-    }, 4000);
+    const el = $('admin-feedback');
+    el.textContent = msg; el.classList.remove('hidden');
+    clearTimeout(showAdminFeedback.t);
+    showAdminFeedback.t = setTimeout(() => el.classList.add('hidden'), 4000);
 }
+
+async function deleteUserByAdmin(target) {
+    if (!confirm(`Permanently delete @${target} and their chat history?`)) return;
+    try {
+        const d = await api('admin/delete-user', null, { admin: currentUser, target });
+        showAdminFeedback(d.message || d.error || 'Done.');
+        if (d.success) {
+            loadAdminDashboard(); loadUsers();
+            if (activeChatUser === target) backToSidebar();
+        }
+    } catch { showAdminFeedback('Failed to delete user.'); }
+}
+
+async function sendWarningByAdmin(target) {
+    const warning = prompt(`Official notice for @${target}:`, 'Please follow community rules and keep conversations respectful.');
+    if (!warning || !warning.trim()) return;
+    try {
+        const d = await api('admin/warning', null, { admin: currentUser, target, warning: warning.trim() });
+        showAdminFeedback(d.message || d.error || 'Done.');
+    } catch { showAdminFeedback('Failed to send notice.'); }
+}
+
+/* ---------- Wiring ---------- */
+document.addEventListener('click', e => {
+    const card = e.target.closest('#users-list .user-card-item');
+    if (card) return selectUser(card.dataset.user);
+    const btn = e.target.closest('#admin-users-table [data-act]');
+    if (btn) (btn.dataset.act === 'warn' ? sendWarningByAdmin : deleteUserByAdmin)(btn.dataset.user);
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('admin-modal').classList.contains('hidden')) closeAdminModal(); });
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadMessages(); if (currentUser) loadUsers(); } });
+
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = sessionStorage.getItem('cc_user');
+    if (saved) { currentUser = saved; initChatView(); }
+    setInterval(() => { if (currentUser && !document.hidden) loadUsers(); }, 10000);
+});

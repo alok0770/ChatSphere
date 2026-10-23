@@ -1,279 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CoreChat — Ultra Modern Messenger</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090d16">
+<title>CoreChat — Ultra Modern Messenger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Subtle Atmospheric Lighting -->
-    <div class="mesh-grid"></div>
-    <div class="ambient-glow orb-navy"></div>
-    <div class="ambient-glow orb-slate"></div>
+<div class="mesh-grid"></div>
+<div class="ambient-glow orb-navy"></div>
+<div class="ambient-glow orb-slate"></div>
 
-    <!-- ================= AUTH VIEW ================= -->
-    <div id="auth-view" class="view">
-        <div class="auth-wrapper">
-            <div class="brand-badge-glow">
-                <span class="live-dot"></span>
-                <span>CORECHAT · SECURE MESSAGING</span>
-            </div>
-            
-            <div class="auth-card glass-morphism">
-                <div class="auth-header">
-                    <div class="brand-logo-glow">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                        </svg>
-                    </div>
-                    <h2>Welcome to CoreChat</h2>
-                    <p>Clean, High-Performance Chat Built with Core Java</p>
-                </div>
-
-                <div class="auth-tab-slider">
-                    <button id="tab-login" class="tab-pill active" onclick="switchAuthTab('login')">Sign In</button>
-                    <button id="tab-register" class="tab-pill" onclick="switchAuthTab('register')">Register</button>
-                </div>
-
-                <form id="auth-form" onsubmit="handleAuthSubmit(event)">
-                    <div class="form-group-modern">
-                        <label for="username">Username</label>
-                        <div class="input-glow-wrapper">
-                            <span class="field-icon">@</span>
-                            <input type="text" id="username" placeholder="Enter username..." required autocomplete="off">
-                        </div>
-                    </div>
-
-                    <div class="form-group-modern">
-                        <label for="password">Password</label>
-                        <div class="input-glow-wrapper">
-                            <span class="field-icon">
-                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                </svg>
-                            </span>
-                            <input type="password" id="password" placeholder="Enter password..." required>
-                            <button type="button" class="eye-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide Password">
-                                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="auth-alert" class="alert-box hidden"></div>
-
-                    <button type="submit" id="auth-submit-btn" class="btn-neon-action">
-                        <span>Sign In to Account</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                            <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
-                    </button>
-                </form>
-            </div>
-
-            <!-- Developer Credit Badge & Links -->
-            <div class="developer-credit-box">
-                <div class="dev-tagline">
-                    Designed & Developed by <span class="dev-name">Alok Rana</span>
-                </div>
-                <div class="dev-social-links">
-                    <a href="https://github.com/alok0770" target="_blank" rel="noopener noreferrer" class="dev-chip" title="View GitHub Profile">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
-                        </svg>
-                        <span>GitHub</span>
-                    </a>
-                    <a href="mailto:alokrana0770@gmail.com" class="dev-chip" title="Send Email">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                            <polyline points="22,6 12,13 2,6"></polyline>
-                        </svg>
-                        <span>alokrana0770@gmail.com</span>
-                    </a>
-                </div>
-            </div>
+<!-- AUTH -->
+<div id="auth-view" class="view">
+  <div class="auth-wrapper">
+    <div class="brand-badge-glow"><span class="live-dot"></span><span>CORECHAT · SECURE MESSAGING</span></div>
+    <div class="auth-card glass-morphism">
+      <div class="auth-header">
+        <div class="brand-logo-glow">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
         </div>
-    </div>
-
-    <!-- ================= MAIN CHAT VIEW ================= -->
-    <div id="chat-view" class="view hidden">
-        <div class="app-frame glass-morphism">
-            <!-- SIDEBAR -->
-            <aside class="sidebar-modern">
-                <!-- User Profile Header -->
-                <div class="profile-header">
-                    <div class="user-avatar-badge">
-                        <div class="avatar" id="current-user-avatar">?</div>
-                        <span class="active-pulse"></span>
-                    </div>
-                    <div class="user-details">
-                        <span class="user-title" id="current-user-name">Loading...</span>
-                        <span class="user-badge-online">Online & Active</span>
-                    </div>
-                    <button class="action-icon-btn admin-btn hidden" id="admin-panel-btn" onclick="openAdminModal()" title="Admin Control Dashboard">
-                        👑
-                    </button>
-                    <button class="action-icon-btn logout-trigger" onclick="logout()" title="Logout from session">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Search Input -->
-                <div class="search-box-wrap">
-                    <div class="search-field">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <input type="text" id="search-input" placeholder="Search direct messages..." oninput="filterUsers()">
-                    </div>
-                </div>
-
-                <!-- Conversations Category Header -->
-                <div class="list-section-header">
-                    <span>ACTIVE CHATS</span>
-                    <button class="refresh-pill" onclick="loadUsers()" title="Refresh conversations">
-                        <span>Sync</span> ↻
-                    </button>
-                </div>
-
-                <!-- Users List -->
-                <div class="users-list-scroll" id="users-list">
-                    <!-- Populated dynamically with rich previews -->
-                </div>
-            </aside>
-
-            <!-- CHAT VIEWPORT -->
-            <main class="chat-viewport-modern">
-                <!-- Empty State -->
-                <div id="no-chat-selected" class="empty-screen">
-                    <div class="empty-illustration">
-                        <div class="icon-ring">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <h2>Select a Conversation</h2>
-                    <p>Choose an active friend from the sidebar to start sharing messages instantly.</p>
-                </div>
-
-                <!-- Active Chat Container -->
-                <div id="active-chat-wrapper" class="active-chat-wrapper hidden">
-                    <!-- Header -->
-                    <header class="chat-header-bar">
-                        <div class="chat-header-left">
-                            <button class="mobile-back-btn" onclick="backToSidebar()" title="Back to conversations">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                                </svg>
-                            </button>
-                            <div class="chat-partner-info">
-                                <div class="avatar-sm-wrap">
-                                    <div class="avatar" id="active-chat-avatar">?</div>
-                                    <span class="active-pulse"></span>
-                                </div>
-                                <div>
-                                    <h3 id="active-chat-username">@username</h3>
-                                    <span class="chat-status-text">⚡ Direct Session · End-to-End Persisted</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="header-tools">
-                            <button class="sound-toggle-pill" id="sound-toggle-btn" onclick="toggleSound()" title="Toggle Sound">
-                                🔔 <span>Audio On</span>
-                            </button>
-                        </div>
-                    </header>
-
-                    <!-- Messages Flow with Date Separator -->
-                    <div class="messages-flow-canvas" id="messages-container">
-                        <!-- Messages dynamically rendered -->
-                    </div>
-
-                    <!-- Modern Action Dock -->
-                    <div class="action-dock-container">
-                        <div class="quick-emojis-bar">
-                            <button type="button" class="quick-emoji" onclick="insertEmoji('🔥')">🔥</button>
-                            <button type="button" class="quick-emoji" onclick="insertEmoji('❤️')">❤️</button>
-                            <button type="button" class="quick-emoji" onclick="insertEmoji('😂')">😂</button>
-                            <button type="button" class="quick-emoji" onclick="insertEmoji('👍')">👍</button>
-                            <button type="button" class="quick-emoji" onclick="insertEmoji('🚀')">🚀</button>
-                        </div>
-
-                        <form class="dock-input-form" onsubmit="handleSendMessage(event)">
-                            <input type="text" id="message-input" placeholder="Type your message here..." autocomplete="off">
-                            <button type="submit" class="send-glow-btn" title="Send message (Enter)">
-                                <span>Send</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                </svg>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </main>
+        <h2>Welcome to CoreChat</h2>
+        <p>Clean, high-performance chat built with Core Java</p>
+      </div>
+      <div class="auth-tab-slider">
+        <button type="button" id="tab-login" class="tab-pill active" onclick="switchAuthTab('login')">Sign In</button>
+        <button type="button" id="tab-register" class="tab-pill" onclick="switchAuthTab('register')">Register</button>
+      </div>
+      <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+        <div class="form-group-modern">
+          <label for="username">Username</label>
+          <div class="input-glow-wrapper">
+            <span class="field-icon">@</span>
+            <input type="text" id="username" placeholder="Enter username..." required autocomplete="username" autocapitalize="none" spellcheck="false">
+          </div>
         </div>
-    </div>
-
-    <!-- ================= ADMIN DASHBOARD MODAL ================= -->
-    <div id="admin-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event)">
-        <div class="admin-modal-card glass-morphism">
-            <div class="modal-topbar">
-                <div class="modal-title-group">
-                    <span class="admin-crown-icon">👑</span>
-                    <div>
-                        <h3>Super Admin Console</h3>
-                        <span class="admin-subtitle">Live Moderation & User Management</span>
-                    </div>
-                </div>
-                <button class="modal-close-btn" onclick="closeAdminModal()">✕</button>
-            </div>
-
-            <!-- Live Stats Row -->
-            <div class="admin-stats-row">
-                <div class="stat-pill-card">
-                    <span class="stat-val" id="stat-total-users">0</span>
-                    <span class="stat-name">Registered Users</span>
-                </div>
-                <div class="stat-pill-card">
-                    <span class="stat-val" id="stat-total-messages">0</span>
-                    <span class="stat-name">Messages Exchanged</span>
-                </div>
-                <div class="stat-pill-card">
-                    <span class="stat-val status-ok">Optimal</span>
-                    <span class="stat-name">Server Health</span>
-                </div>
-            </div>
-
-            <!-- User Management Table -->
-            <div class="admin-management-section">
-                <div class="section-subheading">
-                    <h4>User Management</h4>
-                    <span id="admin-feedback" class="admin-feedback-msg hidden"></span>
-                </div>
-
-                <div class="admin-users-scroll" id="admin-users-table">
-                    <!-- Populated dynamically -->
-                </div>
-            </div>
+        <div class="form-group-modern">
+          <label for="password">Password</label>
+          <div class="input-glow-wrapper">
+            <span class="field-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <input type="password" id="password" placeholder="Enter password..." required autocomplete="current-password">
+            <button type="button" class="eye-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide password">
+              <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
+        <div id="auth-alert" class="alert-box hidden" role="alert"></div>
+        <button type="submit" id="auth-submit-btn" class="btn-neon-action"><span>Sign In to Account</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+      </form>
     </div>
+    <div class="developer-credit-box">
+      <div class="dev-tagline">Designed &amp; Developed by <span class="dev-name">Alok Rana</span></div>
+      <div class="dev-social-links">
+        <a href="https://github.com/alok0770" target="_blank" rel="noopener noreferrer" class="dev-chip">GitHub</a>
+        <a href="mailto:alokrana0770@gmail.com" class="dev-chip">alokrana0770@gmail.com</a>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <script src="app.js"></script>
+<!-- CHAT -->
+<div id="chat-view" class="view hidden">
+  <div class="app-frame glass-morphism">
+    <aside class="sidebar-modern">
+      <div class="profile-header">
+        <div class="user-avatar-badge"><div class="avatar" id="current-user-avatar">?</div><span class="active-pulse"></span></div>
+        <div class="user-details"><span class="user-title" id="current-user-name">Loading...</span><span class="user-badge-online">Online &amp; Active</span></div>
+        <button class="action-icon-btn admin-btn hidden" id="admin-panel-btn" onclick="openAdminModal()" title="Admin console">👑</button>
+        <button class="action-icon-btn" onclick="logout()" title="Log out">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="search-box-wrap"><div class="search-field">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search direct messages..." oninput="filterUsers()">
+      </div></div>
+      <div class="list-section-header"><span>ACTIVE CHATS</span><button class="refresh-pill" onclick="loadUsers()">Sync ↻</button></div>
+      <div class="users-list-scroll" id="users-list"></div>
+    </aside>
+
+    <main class="chat-viewport-modern">
+      <div id="no-chat-selected" class="empty-screen">
+        <div class="empty-illustration"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h2>Select a Conversation</h2>
+        <p>Choose a friend from the sidebar to start sharing messages instantly.</p>
+      </div>
+      <div id="active-chat-wrapper" class="active-chat-wrapper hidden">
+        <header class="chat-header-bar">
+          <div class="chat-header-left">
+            <button class="mobile-back-btn" onclick="backToSidebar()" title="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+            <div class="chat-partner-info">
+              <div class="avatar-sm-wrap"><div class="avatar" id="active-chat-avatar">?</div><span class="active-pulse"></span></div>
+              <div><h3 id="active-chat-username">@username</h3><span class="chat-status-text">⚡ Direct session</span></div>
+            </div>
+          </div>
+          <button class="sound-toggle-pill" id="sound-toggle-btn" onclick="toggleSound()" title="Toggle sound">🔔 <span>Audio On</span></button>
+        </header>
+        <div class="messages-flow-canvas" id="messages-container"></div>
+        <div class="action-dock-container">
+          <div class="quick-emojis-bar">
+            <button type="button" class="quick-emoji" onclick="insertEmoji('🔥')">🔥</button>
+            <button type="button" class="quick-emoji" onclick="insertEmoji('❤️')">❤️</button>
+            <button type="button" class="quick-emoji" onclick="insertEmoji('😂')">😂</button>
+            <button type="button" class="quick-emoji" onclick="insertEmoji('👍')">👍</button>
+            <button type="button" class="quick-emoji" onclick="insertEmoji('🚀')">🚀</button>
+          </div>
+          <form class="dock-input-form" onsubmit="handleSendMessage(event)">
+            <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off" maxlength="1000">
+            <button type="submit" class="send-glow-btn" title="Send"><span>Send</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="admin-modal" class="modal-backdrop hidden" onclick="handleModalBackdropClick(event)">
+  <div class="admin-modal-card glass-morphism">
+    <div class="modal-topbar">
+      <div class="modal-title-group"><span class="admin-crown-icon">👑</span><div><h3>Super Admin Console</h3><span class="admin-subtitle">Moderation &amp; user management</span></div></div>
+      <button class="modal-close-btn" onclick="closeAdminModal()" title="Close">✕</button>
+    </div>
+    <div class="admin-stats-row">
+      <div class="stat-pill-card"><span class="stat-val" id="stat-total-users">0</span><span class="stat-name">Registered users</span></div>
+      <div class="stat-pill-card"><span class="stat-val" id="stat-total-messages">0</span><span class="stat-name">Messages exchanged</span></div>
+      <div class="stat-pill-card"><span class="stat-val status-ok">Optimal</span><span class="stat-name">Server health</span></div>
+    </div>
+    <div class="admin-management-section">
+      <div class="section-subheading"><h4>User Management</h4><span id="admin-feedback" class="admin-feedback-msg hidden"></span></div>
+      <div class="admin-users-scroll" id="admin-users-table"></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
